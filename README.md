@@ -2,6 +2,10 @@
 
 A powerful command-line tool for searching, downloading, and reading manga directly in your terminal. Built with Go, this tool provides a seamless experience for manga enthusiasts who prefer working in the terminal.
 
+<div align="center">
+  <img src="assets/search.mp4" alt="Search Demo" width="600"/>
+</div>
+
 ## Features
 
 - 🔍 Search manga titles with fuzzy matching
@@ -36,6 +40,10 @@ sudo mv manga-cli /usr/local/bin/
 
 ### Search and Read Manga
 
+<div align="center">
+  <img src="assets/search.mp4" alt="Search Demo" width="600"/>
+</div>
+
 ```bash
 # Search for a manga and read it
 manga-cli search --title "One Piece"
@@ -45,6 +53,10 @@ manga-cli search --title "One Piece" --width 100 --height 50
 ```
 
 ### Download Manga Chapters
+
+<div align="center">
+  <img src="assets/download.mp4" alt="Download Demo" width="600"/>
+</div>
 
 ```bash
 # Download specific chapters
@@ -65,6 +77,10 @@ manga-cli list --title "One Piece"
 ```
 
 ### Read Downloaded Manga
+
+<div align="center">
+  <img src="assets/reader.mp4" alt="Reader Demo" width="600"/>
+</div>
 
 ```bash
 # Read downloaded manga
