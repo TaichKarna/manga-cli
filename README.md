@@ -22,7 +22,7 @@ A powerful command-line tool for searching, downloading, and reading manga direc
 
 ```bash
 # Clone the repository
-git clone https://github.com/yourusername/manga-cli.git
+git clone https://github.com/TaichiKarna/manga-cli.git
 cd manga-cli
 
 # Build the project
@@ -126,6 +126,39 @@ Example configuration:
     "viwer": "viu"
 }
 ```
+
+## Future Implementation Plans
+
+### Reading Progress Tracking
+- Save reading progress for each manga
+- Track last read chapter and page
+- Resume reading from last position
+
+### Enhanced Download Features
+- Concurrent chapter downloads for faster batch downloads
+- Download queue management
+- Download progress indicators
+- Automatic retry on failed downloads
+- Support for downloading entire manga series
+
+### User Experience Improvements
+- Bookmark system for favorite chapters
+- Reading lists and collections
+- Search filters (by genre, status, year, etc.)
+
+### Technical Enhancements
+- Multiple source support (not just MangaDex)
+- Caching system for faster loading
+- Better error handling and recovery
+- Automated updates for downloaded manga
+- Export/import reading progress and settings
+- Backup and restore functionality
+
+### Community Features
+- User ratings and reviews
+- Share reading lists
+- Sync reading progress across devices
+- Community recommendations
 
 ## Contributing
 
