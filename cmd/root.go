@@ -9,6 +9,8 @@ import (
 var (
 	title string 
 	chapter int
+	width int 
+	height int
 )
 
 var rootCmd = &cobra.Command{
@@ -19,6 +21,14 @@ var rootCmd = &cobra.Command{
 		fmt.Println("Use a subcommand: download, read, list, etc.")
 		_ = cmd.Help()
 	},
+}
+
+func init() {
+    rootCmd.PersistentFlags().IntVar(&width, "width", 80, "Width of image viewer")
+    rootCmd.PersistentFlags().IntVar(&height, "height", 40, "Height of image viewer")
+	rootCmd.Flags().IntVar(&from, "from", 0, "Start of chapter range")
+	rootCmd.Flags().IntVar(&to, "to", 0, "End of chapter range")	
+
 }
 
 func Execute() error {

@@ -23,6 +23,9 @@ var searchCmd = &cobra.Command{
 			fmt.Println("Usage: manga-cli search --title 'One Piece'")
 			os.Exit(1)
 		}
+		width, _ := cmd.Flags().GetInt("width")
+		height, _ := cmd.Flags().GetInt("height")
+
 		fmt.Println("Searching for manga:", title)
 
 		resp, err := api.GetMangaIDByTitle(title)
@@ -48,7 +51,6 @@ var searchCmd = &cobra.Command{
 		fmt.Print(selectedManga.Attributes.Title["en"])
 		selectedChapter := ShowChaptersList(selectedManga.ID)
 
-		fmt.Println(selectedChapter.Attributes.Title)
 		err = downloader.DownloadChapter(selectedManga.Attributes.Title["en"], selectedChapter.ID, selectedChapter.Attributes.Chapter, false)
 
 		if err != nil {
@@ -74,7 +76,7 @@ var searchCmd = &cobra.Command{
 			os.Exit(1)
 		}
 
-		if err := readerUtil.StartReader(path); err != nil {
+		if err := readerUtil.StartReader(path, width, height); err != nil {
 			fmt.Println("Failed to start reader:", err)
 			os.Exit(1)
 		}	
@@ -93,7 +95,6 @@ func init(){
 
 func selectManga(mangaList []api.MangaData) *api.MangaData{
 	reader := bufio.NewReader(os.Stdin)
-	utils.ClearTerminal()
 	for {
 		fmt.Printf("Select a manga (1-%d) or 'q' to quit: ", len(mangaList))
 		input, err := reader.ReadString('\n')

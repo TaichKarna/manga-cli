@@ -12,7 +12,6 @@ import (
 	"strconv"
 )
 
-// Base URL for MangaDex API
 const baseURL = "https://api.mangadex.org"
 
 type MangaSearchResult struct {
