@@ -2,6 +2,7 @@ package utils
 
 import (
 	"fmt"
+	"manga-cli/internals/config"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -9,24 +10,28 @@ import (
 )
 
 func GetOrCreateMangaCliDir() (string, error) {
-	homeDir, err := os.UserHomeDir()
-	if err != nil {
-		return "", fmt.Errorf("error getting home directory: %w", err)
+	configPath, err := config.GetConfigOption("path")
+	var basePath string
+	print(configPath)
+
+	if err != nil || configPath == nil || configPath == "" {
+		homeDir, err := os.UserHomeDir()
+		if err != nil {
+			return "", fmt.Errorf("error getting home directory: %w", err)
+		}
+		basePath = filepath.Join(homeDir, "Pictures", "manga-cli")
+	} else {
+		basePath = fmt.Sprintf("%v", configPath)
 	}
 
-	picturesDir := filepath.Join(homeDir, "Pictures")
-	mangaCliDir := filepath.Join(picturesDir, "manga-cli")
-
-	if _, err := os.Stat(mangaCliDir); os.IsNotExist(err) {
-		err = os.MkdirAll(mangaCliDir, 0755)
-		if err != nil {
+	if _, err := os.Stat(basePath); os.IsNotExist(err) {
+		if err := os.MkdirAll(basePath, 0755); err != nil {
 			return "", fmt.Errorf("failed to create manga-cli directory: %w", err)
 		}
 	}
 
-	return mangaCliDir, nil
+	return basePath, nil
 }
-
 
 func GetPathByTitleAndChapter(title string, chapter int) (string, error) {
 	mangaCliDir, err := GetOrCreateMangaCliDir()

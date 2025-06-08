@@ -24,8 +24,8 @@ var rootCmd = &cobra.Command{
 }
 
 func init() {
-    rootCmd.PersistentFlags().IntVar(&width, "width", 80, "Width of image viewer")
-    rootCmd.PersistentFlags().IntVar(&height, "height", 40, "Height of image viewer")
+    rootCmd.PersistentFlags().IntVar(&width, "width", 0, "Width of image viewer")
+    rootCmd.PersistentFlags().IntVar(&height, "height", 0, "Height of image viewer")
 	rootCmd.Flags().IntVar(&from, "from", 0, "Start of chapter range")
 	rootCmd.Flags().IntVar(&to, "to", 0, "End of chapter range")	
 

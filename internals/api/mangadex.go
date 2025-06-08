@@ -7,8 +7,6 @@ import (
 	"io"
 	"net/http"
 	"net/url"
-	"os"
-	"path/filepath"
 	"strconv"
 )
 
@@ -139,7 +137,6 @@ func FetchAllChapters(mangaID string) ([]*ChapterData, error) {
 	return all, nil
 }
 
-// Structs to unmarshal at-home server response JSON
 type AtHomeResponse struct {
 	BaseURL string  `json:"baseUrl"`
 	Chapter Chapter `json:"chapter"`
@@ -151,7 +148,6 @@ type Chapter struct {
 	DataSaver []string `json:"dataSaver"`
 }
 
-// Fetch the at-home server info for the chapter
 func GetAtHomeServer(chapterID string) (*AtHomeResponse, error) {
 	url := fmt.Sprintf("https://api.mangadex.org/at-home/server/%s", chapterID)
 
@@ -173,45 +169,84 @@ func GetAtHomeServer(chapterID string) (*AtHomeResponse, error) {
 	return &atHomeResp, nil
 }
 
-func DownloadChapterPages(atHomeResp *AtHomeResponse, folderPath string, useDataSaver bool) error {
-	pages := atHomeResp.Chapter.Data
-	if useDataSaver {
-		pages = atHomeResp.Chapter.DataSaver
+
+func GetChapterIDsByRange(title string, from, to int) (map[int]string, error) {
+	mangaResult, err := GetMangaIDByTitle(title)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get manga ID: %w", err)
 	}
 
-	for _, page := range pages {
-		url := fmt.Sprintf("%s/data/%s/%s", atHomeResp.BaseURL, atHomeResp.Chapter.Hash, page)
+	query := url.Values{}
+	query.Set("manga", mangaResult.Data[0].ID)
+	query.Set("limit", "100")
+	query.Add("translatedLanguage[]", "en")
 
-		resp, err := http.Get(url)
-		if err != nil {
-			return fmt.Errorf("failed to download page %s: %w", page, err)
-		}
-		defer resp.Body.Close()
-
-		if resp.StatusCode != http.StatusOK {
-			return fmt.Errorf("bad response for page %s: %s", page, resp.Status)
-		}
-
-		if err := os.MkdirAll(folderPath, os.ModePerm); err != nil {
-			return fmt.Errorf("failed to create folder %s: %w", folderPath, err)
-		}
-
-		filePath := filepath.Join(folderPath, page)
-		outFile, err := os.Create(filePath)
-		if err != nil {
-			return fmt.Errorf("failed to create file %s: %w", filePath, err)
-		}
-
-		_, err = io.Copy(outFile, resp.Body)
-		outFile.Close()
-		if err != nil {
-			return fmt.Errorf("failed to write page %s: %w", page, err)
-		}
-
-		fmt.Printf("Downloaded %s\n", page)
+	for i := from; i <= to; i++ {
+		query.Add("chapter[]", strconv.Itoa(i))
 	}
 
-	fmt.Printf("Downloaded %d pages.\n", len(pages))
-	return nil
+	fullURL := fmt.Sprintf("https://api.mangadex.org/chapter?%s", query.Encode())
+
+	resp, err := http.Get(fullURL)
+	if err != nil {
+		return nil, fmt.Errorf("request failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != 200 {
+		return nil, fmt.Errorf("bad status: %s", resp.Status)
+	}
+
+	var result ChapterSearchResult
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return nil, fmt.Errorf("decode error: %w", err)
+	}
+
+	chapterMap := make(map[int]string)
+	for _, ch := range result.Data {
+		num, err := strconv.Atoi(ch.Attributes.Chapter)
+		if err != nil {
+			continue 
+		}
+		chapterMap[num] = ch.ID
+	}
+
+	return chapterMap, nil
 }
 
+func GetChapterIDByNumber(title string, chapterNumber int) (ChapterData, error) {
+	mangaResult, err := GetMangaIDByTitle(title)
+	if err != nil {
+		return ChapterData{}, fmt.Errorf("failed to get manga ID: %w", err)
+	}
+
+	endpoint := "https://api.mangadex.org/chapter"
+	query := url.Values{}
+	query.Set("manga", mangaResult.Data[0].ID)
+	query.Set("chapter", strconv.Itoa(chapterNumber))
+	query.Add("translatedLanguage[]", "en")
+	query.Set("limit", "1")
+
+	fullURL := fmt.Sprintf("%s?%s", endpoint, query.Encode())
+
+	resp, err := http.Get(fullURL)
+	if err != nil {
+		return ChapterData{}, fmt.Errorf("HTTP request failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != 200 {
+		return ChapterData{}, fmt.Errorf("unexpected response: %s", resp.Status)
+	}
+
+	var data ChapterSearchResult
+	if err := json.NewDecoder(resp.Body).Decode(&data); err != nil {
+		return ChapterData{}, fmt.Errorf("JSON decode error: %w", err)
+	}
+
+	if len(data.Data) == 0 {
+		return ChapterData{}, fmt.Errorf("chapter %d not found for '%s'", chapterNumber, title)
+	}
+
+	return data.Data[0], nil
+}

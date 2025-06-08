@@ -21,32 +21,35 @@ type Chapter struct {
 	DataSaver []string `json:"dataSaver"`
 }
 
-// DownloadChapter downloads all pages of a given manga chapter
-// title: manga title (used for folder structure)
-// chapterID: MangaDex chapter UUID string (not the integer chapter number)
-// useDataSaver: if true, download lower quality images (dataSaver)
 func DownloadChapter(title string, chapterID string, chapterNo string, useDataSaver bool) error {
-	savePath, err := searchOrCreateFolder(title,  chapterNo)
-	if err != nil {
-		return err
-	}
+	fmt.Printf(" Downloading chapter %s of \"%s\"...\n", chapterNo, title)
 
-	fmt.Println(savePath)
+	savePath, err := searchOrCreateFolder(title, chapterNo)
+	if err != nil {
+		return fmt.Errorf("failed to create folder: %w", err)
+	}
+	fmt.Printf(" Saving to: %s\n", savePath)
 
 	atHomeResp, err := getAtHomeServer(chapterID)
 	if err != nil {
 		return fmt.Errorf("failed to get at-home server info: %w", err)
 	}
 
-	fmt.Println(atHomeResp)
+	fmt.Printf("Got server: %s\n", atHomeResp.BaseURL)
+	fmt.Printf(" Found %d pages to download.\n", len(atHomeResp.Chapter.Data))
+	if useDataSaver {
+		fmt.Println("Using Data Saver mode")
+	}
 
 	err = downloadChapterPages(atHomeResp, savePath, useDataSaver)
 	if err != nil {
 		return fmt.Errorf("failed to download pages: %w", err)
 	}
 
+	fmt.Println(" Chapter download complete.")
 	return nil
 }
+
 
 func searchOrCreateFolder(title string, chapterNo string) (string, error) {
 	mangaCliDir, err := utils.GetOrCreateMangaCliDir()
@@ -83,7 +86,6 @@ func getAtHomeServer(chapterID string) (*AtHomeResponse, error) {
 
 	return &atHomeResp, nil
 }
-
 func downloadChapterPages(atHomeResp *AtHomeResponse, folderPath string, useDataSaver bool) error {
 	pages := atHomeResp.Chapter.Data
 	if useDataSaver {
@@ -91,43 +93,51 @@ func downloadChapterPages(atHomeResp *AtHomeResponse, folderPath string, useData
 	}
 
 	var failedPages []string
+	totalPages := len(pages)
 
-	for _, page := range pages {
+	for i, page := range pages {
+		filePath := filepath.Join(folderPath, page)
+
+		progress := fmt.Sprintf("[%d/%d]", i+1, totalPages)
+
+		if _, err := os.Stat(filePath); err == nil {
+			fmt.Printf("%s Skipped (exists): %s\n", progress, page)
+			continue
+		}
+
 		url := fmt.Sprintf("%s/data/%s/%s", atHomeResp.BaseURL, atHomeResp.Chapter.Hash, page)
 
 		resp, err := http.Get(url)
 		if err != nil {
-			fmt.Printf("Error: failed to GET %s: %v\n", url, err)
+			fmt.Printf("%s Failed to GET %s: %v\n", progress, page, err)
 			failedPages = append(failedPages, page)
 			continue
 		}
+		defer resp.Body.Close()
 
 		if resp.StatusCode != http.StatusOK {
-			fmt.Printf("Error: bad status for %s: %s\n", page, resp.Status)
-			resp.Body.Close()
+			fmt.Printf("%s Bad status for %s: %s\n", progress, page, resp.Status)
 			failedPages = append(failedPages, page)
 			continue
 		}
 
-		filePath := filepath.Join(folderPath, page)
 		outFile, err := os.Create(filePath)
 		if err != nil {
-			fmt.Printf("Error: failed to create file %s: %v\n", filePath, err)
-			resp.Body.Close()
+			fmt.Printf("%s Failed to create file %s: %v\n", progress, page, err)
 			failedPages = append(failedPages, page)
 			continue
 		}
 
 		_, err = io.Copy(outFile, resp.Body)
 		outFile.Close()
-		resp.Body.Close()
 
 		if err != nil {
-			fmt.Printf("Error: failed to write file %s: %v\n", filePath, err)
+			fmt.Printf("%s  Failed to write file %s: %v\n", progress, page, err)
 			failedPages = append(failedPages, page)
 			continue
 		}
 
+		fmt.Printf("%s Downloaded: %s\n", progress, page)
 	}
 
 	if len(failedPages) > 0 {

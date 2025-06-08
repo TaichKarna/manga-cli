@@ -33,12 +33,25 @@ var ValidConfigOptions = map[string]struct {
 }
 
 
+func expandPath(path string) string {
+	if strings.HasPrefix(path, "~/") {
+		usr, err := user.Current()
+		if err != nil {
+			return path
+		}
+		return filepath.Join(usr.HomeDir, path[2:])
+	}
+	return path
+}
+
 func toRelativeHomePath(path string) string {
 	usr, err := user.Current()
 	if err != nil {
 		return path 
 	}
 	home := usr.HomeDir
+
+	path = expandPath(path) 
 
 	absPath, err := filepath.Abs(path)
 	if err != nil {
@@ -56,16 +69,6 @@ func toRelativeHomePath(path string) string {
 	return path 
 }
 
-func expandPath(path string) string {
-	if strings.HasPrefix(path, "~") {
-		usr, err := user.Current()
-		if err != nil {
-			return path
-		}
-		return filepath.Join(usr.HomeDir, path[1:])
-	}
-	return path
-}
 
 func getConfigFilePath() string {
 	home, err := os.UserHomeDir()

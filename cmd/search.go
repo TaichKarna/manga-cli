@@ -4,10 +4,12 @@ import (
 	"bufio"
 	"fmt"
 	"manga-cli/internals/api"
+	"manga-cli/internals/config"
 	"manga-cli/internals/downloader"
 	readerUtil "manga-cli/internals/reader"
 	"manga-cli/internals/utils"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 
@@ -23,65 +25,92 @@ var searchCmd = &cobra.Command{
 			fmt.Println("Usage: manga-cli search --title 'One Piece'")
 			os.Exit(1)
 		}
+	
 		width, _ := cmd.Flags().GetInt("width")
 		height, _ := cmd.Flags().GetInt("height")
-
+	
+		if width == 0 {
+			if w, err := config.GetConfigOption("width"); err == nil {
+				if wInt, ok := w.(float64); ok {
+					width = int(wInt)
+				} else if wInt, ok := w.(int); ok {
+					width = wInt
+				}
+			}
+		}
+	
+		if height == 0 {
+			if h, err := config.GetConfigOption("height"); err == nil {
+				if hInt, ok := h.(float64); ok {
+					height = int(hInt)
+				} else if hInt, ok := h.(int); ok {
+					height = hInt
+				}
+			}
+		}
+	
+		basePathRaw, err := config.GetConfigOption("path")
+		if err != nil {
+			fmt.Println("Failed to get manga path from config:", err)
+			os.Exit(1)
+		}
+		basePath, ok := basePathRaw.(string)
+		if !ok {
+			fmt.Println("Invalid manga path config value")
+			os.Exit(1)
+		}
+	
 		fmt.Println("Searching for manga:", title)
-
+	
 		resp, err := api.GetMangaIDByTitle(title)
-
 		if err != nil {
 			fmt.Println("Error searching manga", err)
 			os.Exit(1)
 		}
-		
 		if len(resp.Data) == 0 {
 			fmt.Println("No manga found with that title.")
 			return
 		}
-
+	
 		fmt.Printf("\nFound %d manga(s):\n\n", len(resp.Data))
 		for i, manga := range resp.Data {
 			fmt.Printf("%d. %s\n", i+1, manga.Attributes.Title["en"])
 			fmt.Println()
 		}
-
+	
 		selectedManga := selectManga(resp.Data)
+		if selectedManga == nil {
+			fmt.Println("No manga selected, exiting.")
+			return
+		}
 		fmt.Println()
 		fmt.Print(selectedManga.Attributes.Title["en"])
 		selectedChapter := ShowChaptersList(selectedManga.ID)
-
-		err = downloader.DownloadChapter(selectedManga.Attributes.Title["en"], selectedChapter.ID, selectedChapter.Attributes.Chapter, false)
-
-		if err != nil {
-			fmt.Println(err)
-			os.Exit(1)
+		if selectedChapter == nil {
+			fmt.Println("No chapter selected, exiting.")
+			return
 		}
-
+	
 		chapterStr := selectedChapter.Attributes.Chapter
-
-		
-		chapterNo, err := strconv.Atoi(chapterStr)
-
-		if err != nil {
-			fmt.Println(err)
-			os.Exit(1)
+	
+		folderPath := filepath.Join(basePath, selectedManga.Attributes.Title["en"], chapterStr)
+	
+		if fi, err := os.Stat(folderPath); err == nil && fi.IsDir() {
+			fmt.Printf("Chapter %s already downloaded, skipping download.\n", chapterStr)
+		} else {
+			err = downloader.DownloadChapter(selectedManga.Attributes.Title["en"], selectedChapter.ID, chapterStr, false)
+			if err != nil {
+				fmt.Println(err)
+				os.Exit(1)
+			}
 		}
-		
-				
-		path, err := utils.GetPathByTitleAndChapter(selectedManga.Attributes.Title["en"], int(chapterNo))
-		
-		if err != nil {
-			fmt.Println(err)
-			os.Exit(1)
-		}
-
-		if err := readerUtil.StartReader(path, width, height); err != nil {
+	
+		if err := readerUtil.StartReader(folderPath, width, height); err != nil {
 			fmt.Println("Failed to start reader:", err)
 			os.Exit(1)
-		}	
+		}
 	},
-
+	
 }
 
 func init(){

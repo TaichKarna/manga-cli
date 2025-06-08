@@ -3,10 +3,8 @@ package cmd
 import (
 	"fmt"
 	"manga-cli/internals/api"
-	"manga-cli/internals/config"
 	"manga-cli/internals/downloader"
 	"os"
-	"path/filepath"
 
 	"github.com/spf13/cobra"
 )
@@ -18,38 +16,60 @@ var downloadCmd = &cobra.Command{
 	Use:   "download",
 	Short: "Download a specific manga chapter or range",
 	Run: func(cmd *cobra.Command, args []string) {
-		if title == "" {
-			fmt.Println("Error: --title is required")
+	title, _ := cmd.Flags().GetString("title")
+	chapterNum, _ := cmd.Flags().GetInt("chapter")
+	from, _ := cmd.Flags().GetInt("from")
+	to, _ := cmd.Flags().GetInt("to")
+	dataSaver, _ := cmd.Flags().GetBool("data-saver")
+
+	if title == "" {
+		fmt.Println("Please specify --title")
+		os.Exit(1)
+	}
+
+	if chapterNum > 0 {
+		chData, err := api.GetChapterIDByNumber(title, chapterNum)
+		if err != nil {
+			fmt.Println("Failed to get chapter:", err)
 			os.Exit(1)
 		}
 
-		if chapter == 0 && (from == 0 || to == 0) {
-			fmt.Println("Error: Either --chapter or both --from and --to must be provided")
+		err = downloader.DownloadChapter(title, chData.ID, chData.Attributes.Chapter, dataSaver)
+		if err != nil {
+			fmt.Println("Download error:", err)
 			os.Exit(1)
 		}
+		fmt.Println("Downloaded chapter", chapterNum)
+		return
+	}
 
-		if chapter != 0 {
-			// Single chapter mode
-			if err := downloadChapter(title, chapter); err != nil {
-				fmt.Println("❌", err)
-				os.Exit(1)
-			}
-			return
-		}
-
-		// Range mode
-		if from > to {
-			fmt.Println("Error: --from must be less than or equal to --to")
+	if from > 0 && to > 0 && to >= from {
+		chMap, err := api.GetChapterIDsByRange(title, from, to)
+		if err != nil {
+			fmt.Println("Failed to fetch chapter range:", err)
 			os.Exit(1)
 		}
 
 		for i := from; i <= to; i++ {
-			fmt.Printf("\n📘 Downloading chapter %d...\n", i)
-			if err := downloadChapter(title, i); err != nil {
-				fmt.Printf("❌ Failed to download chapter %d: %v\n", i, err)
+			chID, ok := chMap[i]
+			if !ok {
+				fmt.Printf("Chapter %d not found\n", i)
+				continue
+			}
+
+			err := downloader.DownloadChapter(title, chID, fmt.Sprintf("%d", i), dataSaver)
+			if err != nil {
+				fmt.Printf("Error downloading chapter %d: %v\n", i, err)
+			} else {
+				fmt.Printf("✅ Downloaded chapter %d\n", i)
 			}
 		}
-	},
+		return
+	}
+
+	fmt.Println("Please specify either --chapter or --from and --to")
+},
+
 }
 
 
@@ -58,41 +78,10 @@ func init(){
 	downloadCmd.Flags().Int("to", 0, "End of chapter range")
 	downloadCmd.Flags().IntVarP(&chapter, "chapter", "c", 0, "Specific chapter number")
 	downloadCmd.Flags().StringVarP(&title, "title", "t", "", "Manga title (required)")
-	
+	downloadCmd.Flags().Bool("data-saver", false, "Use data-saver mode for lower quality images")
+
 	downloadCmd.MarkFlagRequired("title")
 
 	AddSubCommand(downloadCmd)
 }
 
-func downloadChapter(title string, chapter int) error {
-	mangaID, err := api.GetMangaIDByTitle(title)
-	if err != nil {
-		return fmt.Errorf("failed to get manga ID: %w", err)
-	}
-
-	chapterID, err := api.GetChapterIDByNumber(mangaID, chapter)
-	if err != nil {
-		return fmt.Errorf("failed to get chapter ID: %w", err)
-	}
-
-	pages, err := api.GetChapterPages(chapterID)
-	if err != nil {
-		return fmt.Errorf("failed to get pages: %w", err)
-	}
-
-	basePath := "./downloads"
-	if val, err := config.GetConfigOption("path"); err == nil {
-		basePath = fmt.Sprintf("%v", val)
-	}
-	targetPath := filepath.Join(basePath, title, fmt.Sprintf("%v", chapter))
-	if err := os.MkdirAll(targetPath, os.ModePerm); err != nil {
-		return fmt.Errorf("failed to create directory: %w", err)
-	}
-
-	if err := downloader.DownloadImages(pages, targetPath); err != nil {
-		return fmt.Errorf("failed to download images: %w", err)
-	}
-
-	fmt.Printf("✅ Chapter %d of '%s' downloaded to: %s\n", chapter, title, targetPath)
-	return nil
-}
